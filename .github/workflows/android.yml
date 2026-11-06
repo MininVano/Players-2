@@ -2,25 +2,50 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
+  workflow_dispatch:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: set up JDK 11
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
-        java-version: '11'
+        java-version: '17'
         distribution: 'temurin'
-        cache: gradle
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-    - name: Build with Gradle
-      run: ./gradlew build
+    # Устанавливает Gradle 8.9 прямо на сервер
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+      with:
+        gradle-version: '8.9'
+
+    # Настраивает Android SDK
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    # Переносит файлы в корень, если они распаковались во вложенную папку
+    - name: Check Folder
+      run: |
+        if [ -d "NeonPlayer-Android" ]; then
+          cp -rn NeonPlayer-Android/* . || true
+        fi
+        ls -la
+
+    # Собирает APK напрямую через системный Gradle (без gradlew)
+    - name: Build APK with Gradle
+      run: gradle assembleDebug --stacktrace --no-daemon
+
+    # Выгружает готовый файл приложения в Artifacts
+    - name: Upload Debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: NeonPlayer-APK
+        path: |
+          app/build/outputs/apk/debug/*.apk
+          **/build/outputs/apk/debug/*.apk
