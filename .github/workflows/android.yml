@@ -19,29 +19,37 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # Устанавливает Gradle 8.9 прямо на сервер
+    # Устанавливает Gradle 8.9
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
       with:
         gradle-version: '8.9'
 
-    # Настраивает Android SDK
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
+    # Принимаем лицензии Android SDK (используем уже установленный на сервере SDK)
+    - name: Accept Android SDK Licenses
+      run: yes | sdkmanager --licenses 2>/dev/null || true
 
-    # Переносит файлы в корень, если они распаковались во вложенную папку
-    - name: Check Folder
+    # Распаковывает .zip или вложенные папки, если они есть
+    - name: Prepare Project Structure
       run: |
+        for f in *.zip; do
+          if [ -f "$f" ]; then
+            echo "Unzipping $f..."
+            unzip -o "$f" || true
+          fi
+        done
         if [ -d "NeonPlayer-Android" ]; then
+          echo "Moving contents from NeonPlayer-Android to root..."
           cp -rn NeonPlayer-Android/* . || true
         fi
+        echo "=== Files in workspace ==="
         ls -la
 
-    # Собирает APK напрямую через системный Gradle (без gradlew)
+    # Запускаем сборку APK
     - name: Build APK with Gradle
       run: gradle assembleDebug --stacktrace --no-daemon
 
-    # Выгружает готовый файл приложения в Artifacts
+    # Выгружаем готовый APK
     - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
