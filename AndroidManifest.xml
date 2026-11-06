@@ -1,51 +1,51 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="com.neonplayer.music">
+name: Android CI
 
-    <!-- Разрешения для доступа к локальным аудиофайлам Android MediaStore -->
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="32" />
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
 
-    <!-- Разрешения для фонового воспроизведения и системных уведомлений Media3 -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-    <!-- Аудиоэффекты и эквалайзер -->
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-    <application
-        android:name=".NeonApplication"
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.NeonPlayer">
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
 
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:theme="@style/Theme.NeonPlayer"
-            android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+    # Устанавливаем Gradle 8.9 напрямую на сервер GitHub
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+      with:
+        gradle-version: '8.9'
 
-        <!-- Сервис MediaSessionService для стабильного фонового воспроизведения -->
-        <service
-            android:name=".service.PlaybackService"
-            android:exported="true"
-            android:foregroundServiceType="mediaPlayback">
-            <intent-filter>
-                <action android:name="androidx.media3.session.MediaSessionService" />
-            </intent-filter>
-        </service>
-    </application>
+    # Настраиваем Android SDK
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
 
-</manifest>
+    # Если файлы оказались во вложенной папке, переносим их в корень
+    - name: Prepare Project Structure
+      run: |
+        if [ -d "NeonPlayer-Android" ]; then
+          echo "Moving contents from NeonPlayer-Android to root..."
+          cp -r NeonPlayer-Android/* . || true
+        fi
+
+    # Собираем APK напрямую через установленный Gradle
+    - name: Build APK with Gradle
+      run: gradle assembleDebug --stacktrace --no-daemon
+
+    # Выгружаем готовый APK в Artifacts для скачивания
+    - name: Upload Debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: NeonPlayer-APK
+        path: |
+          app/build/outputs/apk/debug/*.apk
+          **/build/outputs/apk/debug/*.apk
